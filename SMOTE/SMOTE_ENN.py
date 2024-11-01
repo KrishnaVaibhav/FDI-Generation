@@ -1,4 +1,5 @@
 import pandas as pd
+from imblearn.combine import SMOTEENN
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 import numpy as np
 
@@ -27,6 +28,19 @@ y_synthetic = y_resampled[n_original:]
 synthetic_data = pd.concat([X_synthetic, y_synthetic], axis=1)
 
 # Save synthetic data to a new CSV file
-synthetic_data.to_csv("only_synthetic_data.csv", index=False)
+synthetic_data.to_csv("synthetic_FDI_data_SMOTE", index=False)
 
+# Apply SMOTE-ENN to the training data
+smote_enn = SMOTEENN(sampling_strategy='auto', random_state=42)
+X_resampled, y_resampled = smote_enn.fit_resample(X, y)
 
+# Separate synthetic samples
+n_original = len(y)  # Number of original samples
+X_synthetic = X_resampled[n_original:]
+y_synthetic = y_resampled[n_original:]
+
+# Combine synthetic samples into a new DataFrame
+synthetic_data = pd.concat([X_synthetic, y_synthetic], axis=1)
+
+# Save synthetic data to a new CSV file
+synthetic_data.to_csv("synthetic_FDI_data_SMOTE_ENN", index=False)
