@@ -1,3 +1,2 @@
 .csv filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
-ADASYN/synthetic_data_ADASYN.csv filter=lfs diff=lfs merge=lfs -text
