@@ -29,13 +29,13 @@ loaded_model = joblib.load('Rxgb_regressor_model.pkl')
 # Function to simulate FDI attack
 def simulate_fdi_attack(data):
     for col in vgm_columns:
-        data[col] += data[col] * np.random.uniform(0.005, 0.10)
+        data[col] += np.random.uniform(-0.15, 0.15)
     for col in pg_columns:
-        data[col] += data[col] * np.random.uniform(1.05, 1.20)
+        data[col] *= np.random.uniform(0.1, 0.12)
     for col in pl_columns:
-        data[col] += data[col] * np.random.uniform(1.10, 1.30)
+        data[col] *= np.random.uniform(0.11, 0.20)
     for col in ql_columns:
-        data[col] += data[col] * np.random.uniform(0.05, 0.50)
+        data[col] += np.random.uniform(-0.05, 0.05)
     return data
 
 # Simulate FDI attack on the original data
