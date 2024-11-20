@@ -55,7 +55,7 @@ result_df.to_csv('attacked_data_with_predictions.csv', index=False)
 normal_data = pd.read_csv("IEEE118NormalWithPd_Qd.csv")
 attack_data = pd.read_csv("attacked_data_with_predictions.csv")
 
-# Combine the normal data and attack data predictions into a single DataFrame
+# Combine the normal data and attack              data predictions into a single DataFrame
 normal_data['Type'] = 'Normal'
 attack_data['Type'] = 'Attack'
 
