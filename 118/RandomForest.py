@@ -1,22 +1,17 @@
 import pandas as pd
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from xgboost import XGBRegressor
+import lightgbm as lgb
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import pickle
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.multioutput import MultiOutputRegressor as mor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, accuracy_score, confusion_matrix, classification_report, f1_score, precision_score, recall_score
-
-import joblib
-import seaborn as sns
-from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.ensemble import RandomForestRegressor as RF
 
 # Load the dataset
 data = pd.read_csv("IEEE118NormalWithPd_Qd.csv")
-
-# Identify inf values and replace with NaN
-data.replace([np.inf, -np.inf], np.nan, inplace=True)
-
-# Fill NaN values with the mean of each column
-data.fillna(data.mean(), inplace=True)
 
 # Select features and target variables
 vgm_columns = [col for col in data.columns if 'VGM' in col]
@@ -28,84 +23,62 @@ vlm_columns = [col for col in data.columns if 'VLM' in col]
 vla_columns = [col for col in data.columns if 'VLA' in col]
 vga_columns = [col for col in data.columns if 'VGA' in col]
 
+
+
+# Function to handle inf values (consider replacing with a more domain-specific approach if applicable)
+def handle_inf_values(df):
+    for col in df.columns:
+        df.loc[df[col] == np.inf, col] = df[col].mean()  # Replace inf with mean (adjustable)
+        df.loc[df[col] == -np.inf, col] = -df[col].mean()  # Replace -inf with negative of mean
+    return df
+
+
+# Handle inf values in both training and testing data
+data = handle_inf_values(data.copy())
+
 X = data[vgm_columns + pg_columns + pl_columns + ql_columns]
 y = data[vlm_columns + vla_columns + vga_columns]
 
 # Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Create the Random Forest Regressor with parallel processing
-mor_model = mor(RandomForestRegressor(n_estimators=100, random_state=123, n_jobs=16))
 
-# Fit the model
-print("Training the model...")
-mor_model.fit(X_train, y_train)
+# Define LightGBM parameter grid
+lgb_param_grid = {
+    'learning_rate': [0.05, 0.1, 0.2],
+    'n_estimators': [100, 200, 500],
+    'max_depth': [3, 5, 8],
+}
 
-# Make predictions
-y_pred = mor_model.predict(X_test)
+# Create and train LightGBM model with GridSearchCV
+lgb_regressor =MultiOutputRegressor(RF(n_estimators=100, n_jobs=2, max_depth=5))
+print("Training LightGBM Model...")
+lgb_regressor.fit(X_train,y_train)
 
-# Calculate accuracy for each output and average the results
-accuracies = []
-for i in range(y_test.shape[1]):
-    accuracies.append(accuracy_score(y_test.iloc[:, i].round(), y_pred[:, i].round()))
+# # Create and train LightGBM model with GridSearchCV
+# lgb_regressor = MultiOutputRegressor(lgb.LGBMRegressor(n_estimators=100, learning_rate=0.1, n_jobs=2, max_depth=5))
+# print("Training LightGBM Model...")
+# lgb_regressor.fit(X_train,y_train)
 
-average_accuracy = sum(accuracies) / len(accuracies)
-print(f"Average Accuracy: {average_accuracy}")
+# # Create and train LightGBM model with GridSearchCV
+# lgb_regressor =MultiOutputRegressor(XGBRegressor(n_estimators=100, n_jobs=2, max_depth=5))
+# print("Training LightGBM Model...")
+# lgb_regressor.fit(X_train,y_train)
 
-# Calculate F1 score for each output and average the results
-f1_scores = []
-for i in range(y_test.shape[1]):
-    f1_scores.append(f1_score(y_test.iloc[:, i].round(), y_pred[:, i].round(), average='weighted'))
 
-average_f1_score = sum(f1_scores) / len(f1_scores)
-print(f"Average F1 Score: {average_f1_score}")
+#pickle.dump(lgb_regressor,"lgb_regressor.pkl")
+y_pred_lgb = lgb_regressor.predict(X_test)
 
-# Calculate precision for each output and average the results
-precision_scores = []
-for i in range(y_test.shape[1]):
-    precision_scores.append(precision_score(y_test.iloc[:, i].round(), y_pred[:, i].round(), average='weighted'))
+# Evaluate LightGBM Model
+mse_lgb = mean_squared_error(y_test, y_pred_lgb)
+mae_lgb = mean_absolute_error(y_test, y_pred_lgb)
+r2_lgb = r2_score(y_test, y_pred_lgb)
 
-average_precision = sum(precision_scores) / len(precision_scores)
-print(f"Average Precision: {average_precision}")
+print("LightGBM Model Evaluation:")
+print("Mean Squared Error:", mse_lgb)
+print("Mean Absolute Error:", mae_lgb)
+print("R-squared Score:", r2_lgb)
 
-# Calculate recall for each output and average the results
-recall_scores = []
-for i in range(y_test.shape[1]):
-    recall_scores.append(recall_score(y_test.iloc[:, i].round(), y_pred[:, i].round(), average='weighted'))
-
-average_recall = sum(recall_scores) / len(recall_scores)
-print(f"Average Recall: {average_recall}")
-
-# Calculate confusion matrix for each output and plot the first one as an example
-conf_matrix = confusion_matrix(y_test.iloc[:, 0].round(), y_pred[:, 0].round())
-print(f"Confusion Matrix for first output:\n{conf_matrix}")
-
-# Plot confusion matrix
-import matplotlib.pyplot as plt
-
-plt.figure(figsize=(10, 8))
-sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues')
-plt.xlabel('Predicted')
-plt.ylabel('Actual')
-plt.title('Confusion Matrix')
-plt.show()
-
-# Calculate mean squared error
-mse = mean_squared_error(y_test, y_pred)
-print(f"Mean Squared Error: {mse}")
-
-# Calculate R^2 score
-r2 = r2_score(y_test, y_pred)
-print(f"R^2 Score: {r2}")
-
-# Calculate Mean Absolute Error
-mae = mean_absolute_error(y_test, y_pred)
-print(f"Mean Absolute Error: {mae}")
-
-# Calculate Root Mean Squared Error
-rmse = mean_squared_error(y_test, y_pred, squared=False)
-print(f"Root Mean Squared Error: {rmse}")
-
-# Save the model
-print("Saving the model...")
-joblib.dump(mor_model, 'random_forest_model_new.pkl')
+print("Saving LightGBM Model...")
+with open('RFmodel.pickle', 'wb') as handle:
+    pickle.dump(lgb_regressor, handle) 
